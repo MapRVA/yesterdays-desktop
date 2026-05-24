@@ -1,0 +1,37 @@
+[package]
+name = "yesterdays-desktop"
+version = "0.1.0"
+description = "Desktop application for importing photo collections into Yesterdays."
+authors = ["Jacob Hall"]
+license = "GPL-3.0-or-later"
+edition = "2024"
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-store = "2"
+futures = "0.3"
+image = "0.25"
+image_hasher = "3"
+rayon = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.9"
+url = "2"
+urlencoding = "2"
