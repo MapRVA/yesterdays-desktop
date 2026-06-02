@@ -3,6 +3,8 @@
     import { auth } from "$lib/auth.svelte";
 
     let name = $state("");
+    let slug = $state("");
+    let slugEdited = $state(false);
     let url = $state("");
     let description = $state("");
     let isPublic = $state(false);
@@ -10,6 +12,19 @@
     let submitting = $state(false);
     let error = $state("");
     let fieldErrors: Record<string, string[]> = $state({});
+
+    function slugify(value: string): string {
+        return value
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+    }
+
+    // Auto-derive the slug from the name until the user edits it by hand.
+    $effect(() => {
+        if (!slugEdited) slug = slugify(name);
+    });
 
     $effect(() => {
         if (!auth.hydrated) return;
@@ -32,6 +47,7 @@
                 },
                 body: JSON.stringify({
                     name,
+                    slug,
                     url,
                     description,
                     public: isPublic,
@@ -76,6 +92,26 @@
         />
         {#if fieldErrors.name}
             <div class="invalid-feedback">{fieldErrors.name.join(" ")}</div>
+        {/if}
+    </div>
+
+    <div class="mb-3">
+        <label for="source-slug" class="form-label">Slug</label>
+        <input
+            id="source-slug"
+            type="text"
+            class="form-control"
+            class:is-invalid={fieldErrors.slug}
+            bind:value={slug}
+            oninput={() => (slugEdited = true)}
+            required
+            disabled={submitting}
+        />
+        <div class="form-text">
+            URL-friendly identifier, unique across all sources.
+        </div>
+        {#if fieldErrors.slug}
+            <div class="invalid-feedback">{fieldErrors.slug.join(" ")}</div>
         {/if}
     </div>
 
