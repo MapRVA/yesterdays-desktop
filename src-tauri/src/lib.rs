@@ -1,6 +1,6 @@
 mod imports;
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures::stream::{self, StreamExt};
 use image_hasher::{HasherConfig, ImageHash};
 use rand::Rng;
@@ -612,9 +612,7 @@ async fn download_thumbnails(
 
 const HASHES_FILE: &str = "hashes.json";
 const FOLDER_HASHES_FILE: &str = "folder_hashes.json";
-const IMAGE_EXTS: &[&str] = &[
-    "jpg", "jpeg", "png", "webp", "gif", "bmp", "tif", "tiff",
-];
+const IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "png", "webp", "gif", "bmp", "tif", "tiff"];
 
 #[derive(Serialize, Deserialize, Clone)]
 struct FolderHashEntry {
@@ -624,7 +622,10 @@ struct FolderHashEntry {
     preview_filename: String,
 }
 
-pub(crate) fn collection_dir(app: &tauri::AppHandle, collection_id: u64) -> Result<PathBuf, String> {
+pub(crate) fn collection_dir(
+    app: &tauri::AppHandle,
+    collection_id: u64,
+) -> Result<PathBuf, String> {
     let cache_root = app
         .path()
         .app_cache_dir()
@@ -738,10 +739,7 @@ fn preview_key(path: &Path) -> String {
     digest[..16].to_string()
 }
 
-fn hash_and_preview(
-    path: &Path,
-    preview_dir: &Path,
-) -> Result<(ImageHash, PathBuf), String> {
+fn hash_and_preview(path: &Path, preview_dir: &Path) -> Result<(ImageHash, PathBuf), String> {
     let img = decode_image(path)?;
     let hasher = HasherConfig::new().to_hasher();
     let hash = hasher.hash_image(&img);
@@ -754,6 +752,25 @@ fn hash_and_preview(
             .map_err(|e| format!("preview save: {}", e))?;
     }
     Ok((hash, preview_path))
+}
+
+/// Generate a preview thumbnail without computing the perceptual hash.
+///
+/// Used by the single-image replace flow, where the hash is never consumed.
+/// Skipping it avoids a second full-image resampling pass over the source.
+fn preview_only(path: &Path, preview_dir: &Path) -> Result<PathBuf, String> {
+    let preview_path = preview_dir.join(format!("{}.jpg", preview_key(path)));
+    if preview_path.exists() {
+        return Ok(preview_path);
+    }
+
+    let img = decode_image(path)?;
+    let preview = img.thumbnail(512, 512).to_rgb8();
+    preview
+        .save(&preview_path)
+        .map_err(|e| format!("preview save: {}", e))?;
+
+    Ok(preview_path)
 }
 
 #[derive(Serialize, Clone)]
@@ -781,10 +798,7 @@ struct MatchResult {
 }
 
 fn emit_match_progress(app: &tauri::AppHandle, phase: &'static str, done: u32, total: u32) {
-    let _ = app.emit(
-        "match-progress",
-        MatchProgress { phase, done, total },
-    );
+    let _ = app.emit("match-progress", MatchProgress { phase, done, total });
 }
 
 #[derive(Serialize)]
@@ -838,10 +852,7 @@ async fn get_thumbnail_cache_status(
 }
 
 #[tauri::command]
-async fn clear_thumbnail_cache(
-    app: tauri::AppHandle,
-    collection_id: u64,
-) -> Result<(), String> {
+async fn clear_thumbnail_cache(app: tauri::AppHandle, collection_id: u64) -> Result<(), String> {
     // Blow away the raw thumbnail files and their hashes. folder_hashes.json,
     // folder_previews/, and replacements.json are preserved so that re-running
     // a match doesn't re-hash the user's (potentially thousands of) TIFs.
@@ -1097,8 +1108,7 @@ async fn match_replacement_folder(
     let pairs_total = (thumb_hashes.len() * folder_hashes.len()) as u32;
     emit_match_progress(&app, "matching", 0, pairs_total);
 
-    let mut pairs: Vec<(u32, usize, usize)> =
-        Vec::with_capacity(pairs_total as usize);
+    let mut pairs: Vec<(u32, usize, usize)> = Vec::with_capacity(pairs_total as usize);
     for (ti, (_, _, th)) in thumb_hashes.iter().enumerate() {
         for (fi, (_, _, fh)) in folder_hashes.iter().enumerate() {
             let d = th.dist(fh);
@@ -1336,10 +1346,7 @@ where
         let t = tokens.lock().map_err(|e| format!("token lock: {}", e))?;
         t.access_token.clone()
     };
-    let resp = build(&access)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    let resp = build(&access).send().await.map_err(|e| e.to_string())?;
     if resp.status() != reqwest::StatusCode::UNAUTHORIZED {
         return Ok(resp);
     }
@@ -1363,10 +1370,7 @@ where
     }
     let _ = app.emit("tokens-refreshed", &new);
 
-    build(&new_access)
-        .send()
-        .await
-        .map_err(|e| e.to_string())
+    build(&new_access).send().await.map_err(|e| e.to_string())
 }
 
 async fn upload_and_commit_one(
@@ -1579,7 +1583,9 @@ async fn run_replacements_dispatcher(
     let paused_final = active.paused.load(Ordering::Relaxed);
     let _ = app.emit(
         "replacement-complete",
-        ReplacementComplete { paused: paused_final },
+        ReplacementComplete {
+            paused: paused_final,
+        },
     );
 }
 
@@ -1754,9 +1760,7 @@ async fn get_replacements_state(
             .lock()
             .map_err(|e| format!("app state lock: {}", e))?;
         match guard.as_ref() {
-            Some(a) if a.collection_id == collection_id => {
-                (true, a.paused.load(Ordering::Relaxed))
-            }
+            Some(a) if a.collection_id == collection_id => (true, a.paused.load(Ordering::Relaxed)),
             _ => (false, false),
         }
     };
@@ -1819,7 +1823,7 @@ async fn preview_replacement_file(
     let path = PathBuf::from(&file_path);
     tauri::async_runtime::spawn_blocking(move || {
         std::fs::create_dir_all(&preview_dir).map_err(|e| e.to_string())?;
-        let (_, preview_path) = hash_and_preview(&path, &preview_dir)?;
+        let preview_path = preview_only(&path, &preview_dir)?;
         Ok::<String, String>(preview_path.to_string_lossy().into_owned())
     })
     .await
