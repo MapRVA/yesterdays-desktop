@@ -25,6 +25,7 @@
         license_name: string | null;
         rotation: number;
         mirror: string;
+        subjects: string[];
     };
 
     type PreflightPair = {

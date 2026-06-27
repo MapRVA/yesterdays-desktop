@@ -24,6 +24,7 @@ const SIDECAR_FIELDS: &[&str] = &[
     "license_name",
     "rotation",
     "mirror",
+    "subjects",
 ];
 
 // ---------------------------------------------------------------------------
@@ -44,6 +45,8 @@ pub struct Sidecar {
     pub license_name: Option<String>,
     pub rotation: i64,
     pub mirror: String,
+    /// Subject slugs to tag, in order. Absent in the sidecar means none.
+    pub subjects: Vec<String>,
 }
 
 fn require_present<'a>(
@@ -103,6 +106,28 @@ fn read_mirror(map: &serde_json::Map<String, Value>) -> Result<String, String> {
     }
 }
 
+/// Read the optional `subjects` list of subject slugs. An absent key or an
+/// explicit `null` both mean "no subjects" (`[]`), so sidecars written before
+/// subject support stay valid. When present it must be an array of strings;
+/// whether each slug actually *exists* is checked later against the server's
+/// set, not here.
+fn read_subjects(map: &serde_json::Map<String, Value>) -> Result<Vec<String>, String> {
+    match map.get("subjects") {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::Array(items)) => {
+            let mut slugs = Vec::with_capacity(items.len());
+            for item in items {
+                match item {
+                    Value::String(s) => slugs.push(s.clone()),
+                    _ => return Err("`subjects` must be an array of strings".to_string()),
+                }
+            }
+            Ok(slugs)
+        }
+        Some(_) => Err("`subjects` must be an array of strings or null".to_string()),
+    }
+}
+
 /// Parse a sidecar JSON blob into a [`Sidecar`], rejecting unknown keys,
 /// missing keys, and wrong-typed values. Returns the first error encountered.
 fn parse_sidecar(raw: &str) -> Result<Sidecar, String> {
@@ -136,6 +161,7 @@ fn parse_sidecar(raw: &str) -> Result<Sidecar, String> {
         license_name: read_string_or_null(&map, "license_name")?,
         rotation: read_rotation(&map)?,
         mirror: read_mirror(&map)?,
+        subjects: read_subjects(&map)?,
     })
 }
 
@@ -491,6 +517,10 @@ pub async fn preflight_folder(
         });
     }
 
+    // Subject slugs are validated server-side at commit, not here: the public
+    // subjects list only includes subjects with at least one public image, so a
+    // valid subject whose first image is in this very import would be hidden
+    // from it — pre-validating against that list would wrongly block the import.
     pending.sort_by(|a, b| a.stem.cmp(&b.stem));
     completed.sort_by(|a, b| a.stem.cmp(&b.stem));
 
@@ -681,6 +711,7 @@ fn commit_payload(slot_id: &str, sc: &Sidecar) -> serde_json::Value {
         "license_name": sc.license_name.clone().unwrap_or_default(),
         "rotation": sc.rotation,
         "mirror": sc.mirror,
+        "subjects": sc.subjects,
     })
 }
 
