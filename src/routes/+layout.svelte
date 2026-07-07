@@ -30,7 +30,7 @@
 
 <nav class="navbar bg-primary" data-bs-theme="dark">
     <div class="container-fluid">
-        <span class="navbar-brand mb-0 h1">Yesterdays Desktop Importer</span>
+        <a href="/" class="navbar-brand mb-0 h1 text-decoration-none">Yesterdays Desktop Importer</a>
         {#if auth.user}
             <div class="dropdown" bind:this={dropdownContainer}>
                 <button
