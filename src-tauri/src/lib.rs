@@ -1,4 +1,5 @@
 mod imports;
+mod prepare;
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures::stream::{self, StreamExt};
@@ -758,7 +759,7 @@ fn hash_and_preview(path: &Path, preview_dir: &Path) -> Result<(ImageHash, PathB
 ///
 /// Used by the single-image replace flow, where the hash is never consumed.
 /// Skipping it avoids a second full-image resampling pass over the source.
-fn preview_only(path: &Path, preview_dir: &Path) -> Result<PathBuf, String> {
+pub(crate) fn preview_only(path: &Path, preview_dir: &Path) -> Result<PathBuf, String> {
     let preview_path = preview_dir.join(format!("{}.jpg", preview_key(path)));
     if preview_path.exists() {
         return Ok(preview_path);
@@ -1903,6 +1904,8 @@ pub fn run() {
             imports::resume_imports,
             imports::get_imports_state,
             imports::clear_imports,
+            prepare::scan_prepare_folder,
+            prepare::save_prepare_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
