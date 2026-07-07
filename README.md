@@ -5,6 +5,10 @@
 
 This is a [Tauri](https://tauri.app/) + [Svelte](https://svelte.dev/) + [Bootstrap](https://getbootstrap.com/) app for interfacing with the [Yesterdays](https://docs.yesterdays.maprva.org/) API v2.
 
+## Installation
+
+Download the latest version from our [Releases page](https://github.com/MapRVA/yesterdays-desktop/releases) to get started.
+
 ## Development
 
 Requires [Bun](https://bun.sh/) and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your platform.
