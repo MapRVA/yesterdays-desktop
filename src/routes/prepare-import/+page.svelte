@@ -90,6 +90,12 @@
 
     let dragIndex = $state<number | null>(null);
     let dragOverIndex = $state<number | null>(null);
+    // Our own drag preview: a small, semi-transparent thumbnail that follows
+    // the cursor. We render this instead of the native drag image, which on
+    // WebKitGTK can't rasterize the row and shows nothing at all.
+    let dragPreview = $state<{ src: string | null; x: number; y: number } | null>(
+        null,
+    );
 
     let bulkNote = $state("");
     let conflict = $state<null | {
@@ -282,22 +288,74 @@
         items = next;
     }
 
-    function onDragStart(i: number) {
+    // Transparent 1×1 GIF used to blank the native drag ghost. setDragImage IS
+    // honored on WebKitGTK (it replaces the default snapshot) — it just can't
+    // render a real element — so pointing it at a transparent pixel reliably
+    // hides it, leaving our own `dragPreview` as the only visible feedback.
+    const blankDragImage =
+        typeof Image !== "undefined"
+            ? Object.assign(new Image(), {
+                  src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+              })
+            : null;
+
+    // The layout's `main` has `will-change: transform`, which makes it the
+    // containing block for `position: fixed` — so a ghost rendered inside it is
+    // offset by main's position and drifts with scroll (it ends up floating
+    // far from the cursor). Portaling it to <body> keeps it viewport-fixed, so
+    // clientX/clientY map straight to left/top.
+    function portal(node: HTMLElement) {
+        document.body.appendChild(node);
+        return {
+            destroy() {
+                node.remove();
+            },
+        };
+    }
+
+    function onDragStart(e: DragEvent, i: number) {
         dragIndex = i;
+        if (!e.dataTransfer) return;
+        // Populate dataTransfer — some webview engines won't start a drag
+        // (so `drop` never fires) unless the drag carries data.
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", String(i));
+        if (blankDragImage) e.dataTransfer.setDragImage(blankDragImage, 0, 0);
+
+        const item = items[i];
+        dragPreview = {
+            src: item.preview_path ? convertFileSrc(item.preview_path) : null,
+            x: e.clientX,
+            y: e.clientY,
+        };
+        // Track the pointer everywhere (not just over rows) so the preview
+        // keeps following even past the ends of the list.
+        window.addEventListener("dragover", onWindowDragOver);
+    }
+    function onWindowDragOver(e: DragEvent) {
+        if (dragPreview) {
+            dragPreview.x = e.clientX;
+            dragPreview.y = e.clientY;
+        }
+    }
+    function endDrag() {
+        dragIndex = null;
+        dragOverIndex = null;
+        dragPreview = null;
+        window.removeEventListener("dragover", onWindowDragOver);
     }
     function onDragOver(e: DragEvent, i: number) {
         e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
         dragOverIndex = i;
     }
     function onDrop(e: DragEvent, i: number) {
         e.preventDefault();
         if (dragIndex !== null) move(dragIndex, i);
-        dragIndex = null;
-        dragOverIndex = null;
+        endDrag();
     }
     function onDragEnd() {
-        dragIndex = null;
-        dragOverIndex = null;
+        endDrag();
     }
 
     function applyToAll(field: BulkField) {
@@ -564,7 +622,7 @@
                             draggable="true"
                             role="button"
                             tabindex="0"
-                            ondragstart={() => onDragStart(i)}
+                            ondragstart={(e) => onDragStart(e, i)}
                             ondragover={(e) => onDragOver(e, i)}
                             ondrop={(e) => onDrop(e, i)}
                             ondragend={onDragEnd}
@@ -594,6 +652,7 @@
                                     <img
                                         src={convertFileSrc(item.preview_path)}
                                         alt=""
+                                        draggable="false"
                                     />
                                 {:else}
                                     <div class="thumb-missing" title="Preview unavailable">
@@ -1001,6 +1060,20 @@
     </div>
 {/if}
 
+{#if dragPreview}
+    <div
+        class="drag-ghost"
+        use:portal
+        style="left: {dragPreview.x}px; top: {dragPreview.y}px;"
+    >
+        {#if dragPreview.src}
+            <img src={dragPreview.src} alt="" />
+        {:else}
+            <div class="thumb-missing">⚠</div>
+        {/if}
+    </div>
+{/if}
+
 <style>
     .prep-list {
         max-height: calc(100vh - 240px);
@@ -1049,6 +1122,23 @@
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+    .drag-ghost {
+        position: fixed;
+        z-index: 1090;
+        width: 44px;
+        height: 44px;
+        border-radius: 4px;
+        overflow: hidden;
+        opacity: 0.75;
+        pointer-events: none;
+        transform: translate(0.75em, 0.75em);
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+    }
+    .drag-ghost img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
     .thumb img {
         width: 100%;
