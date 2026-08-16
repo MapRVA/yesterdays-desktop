@@ -7,7 +7,7 @@ This is a [Tauri](https://tauri.app/) + [Svelte](https://svelte.dev/) + [Bootstr
 
 ## Installation
 
-Download the latest version from our [Releases page](https://github.com/MapRVA/yesterdays-desktop/releases) to get started.
+Download the latest version from our [Releases page](https://github.com/MapRVA/yesterdays-desktop/releases) to get started. Arch Linux users can [install the package from the AUR](https://aur.archlinux.org/packages/yesterdays-desktop-bin).
 
 ## Development
 
